@@ -1,2 +1,4 @@
 # ahb3lite_memory
-RAM with AHB3-Lite interface
+Multi-technology RAM with AHB3-Lite interface
+
+Released under the RoaLogic Non-Commercial license
