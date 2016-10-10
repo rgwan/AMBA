@@ -13,7 +13,7 @@
 //          ███████╗╚██████╔╝╚██████╔╝██║╚██████╗              //
 //          ╚══════╝ ╚═════╝  ╚═════╝ ╚═╝ ╚═════╝              //
 //                                                             //
-//    AHB3-Lite Switch Testbench (Top level)                   //
+//    AHB3-Lite Interconnect Switch Testbench (Top level)      //
 //                                                             //
 /////////////////////////////////////////////////////////////////
 //                                                             //
@@ -191,7 +191,7 @@ endgenerate
 //    .slave  ( ahb_slave  )
   );
 
-  ahb_switch #(
+  ahb3lite_interconnect #(
     .MASTERS    ( MASTERS    ),
     .SLAVES     ( SLAVES     ),
     .HADDR_SIZE ( HADDR_SIZE ),
