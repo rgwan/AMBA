@@ -101,8 +101,8 @@ module ahb3lite_interconnect #(
   output [           3:0] slv_HPROT     [SLAVES],
   output [           1:0] slv_HTRANS    [SLAVES],
   output                  slv_HMASTLOCK [SLAVES],
-  input                   slv_HREADYOUT [SLAVES], //combinatorial HREADYOUT from all connected slaves
-  output                  slv_HREADY    [SLAVES], //HREADY to all connected slaves
+  output                  slv_HREADYOUT [SLAVES], //HREADYOUT to slave-decoder; generates HREADY to all connected slaves
+  input                   slv_HREADY    [SLAVES], //combinatorial HREADY from all connected slaves
   input                   slv_HRESP     [SLAVES]
 );
   //////////////////////////////////////////////////////////////////
@@ -125,13 +125,11 @@ module ahb3lite_interconnect #(
   logic [MASTERS-1:0]             [           2:0] frommstHSIZE;
   logic [MASTERS-1:0]             [           2:0] frommstHBURST;
   logic [MASTERS-1:0]             [           3:0] frommstHPROT;
-  logic [MASTERS-1:0]             [           1:0] frommstHTRANS,
-                                                   frommstHTRANS4sw;
-  logic [MASTERS-1:0]                              frommstHMASTLOCK,
-                                                   frommstHMASTLOCK4sw;
-  logic [MASTERS-1:0]                              frommstHREADY,
+  logic [MASTERS-1:0]             [           1:0] frommstHTRANS;
+  logic [MASTERS-1:0]                              frommstHMASTLOCK;
+  logic [MASTERS-1:0]                              frommstHREADYOUT,
                                                    frommst_canswitch;
-  logic [MASTERS-1:0][SLAVES -1:0]                 tomstHREADYOUT;
+  logic [MASTERS-1:0][SLAVES -1:0]                 tomstHREADY;
   logic [MASTERS-1:0][SLAVES -1:0]                 tomstHRESP;
   logic [MASTERS-1:0][SLAVES -1:0]                 tomstgrant;
 
@@ -145,10 +143,8 @@ module ahb3lite_interconnect #(
   logic [SLAVES -1:0][MASTERS-1:0][           2:0] toslvHSIZE;
   logic [SLAVES -1:0][MASTERS-1:0][           2:0] toslvHBURST;
   logic [SLAVES -1:0][MASTERS-1:0][           3:0] toslvHPROT;
-  logic [SLAVES -1:0][MASTERS-1:0][           1:0] toslvHTRANS,
-                                                   toslvHTRANS4sw;
-  logic [SLAVES -1:0][MASTERS-1:0]                 toslvHMASTLOCK,
-                                                   toslvHMASTLOCK4sw;
+  logic [SLAVES -1:0][MASTERS-1:0][           1:0] toslvHTRANS;
+  logic [SLAVES -1:0][MASTERS-1:0]                 toslvHMASTLOCK;
   logic [SLAVES -1:0][MASTERS-1:0]                 toslvHREADY,
                                                    toslv_canswitch;
   logic [SLAVES -1:0]                              fromslvHREADYOUT;
@@ -210,11 +206,9 @@ generate
     .slvHBURST      ( frommstHBURST      [m] ),
     .slvHPROT       ( frommstHPROT       [m] ),
     .slvHTRANS      ( frommstHTRANS      [m] ),
-    .slvHTRANS4sw   ( frommstHTRANS4sw   [m] ),
     .slvHMASTLOCK   ( frommstHMASTLOCK   [m] ),
-    .slvHMASTLOCK4sw( frommstHMASTLOCK4sw[m] ),
-    .slvHREADYOUT   ( tomstHREADYOUT     [m] ),
-    .slvHREADY      ( frommstHREADY      [m] ),
+    .slvHREADY      ( tomstHREADY        [m] ),
+    .slvHREADYOUT   ( frommstHREADYOUT   [m] ),
     .slvHRESP       ( tomstHRESP         [m] ),
 
     .can_switch     ( frommst_canswitch  [m] ),
@@ -241,10 +235,8 @@ endgenerate
           assign toslvHBURST      [s][m] = frommstHBURST      [m];
           assign toslvHPROT       [s][m] = frommstHPROT       [m];
           assign toslvHTRANS      [s][m] = frommstHTRANS      [m];
-          assign toslvHTRANS4sw   [s][m] = frommstHTRANS4sw   [m];
           assign toslvHMASTLOCK   [s][m] = frommstHMASTLOCK   [m];
-          assign toslvHMASTLOCK4sw[s][m] = frommstHMASTLOCK4sw[m];
-          assign toslvHREADY      [s][m] = frommstHREADY      [m]; //feed Masters's HREADY signal to slave port
+          assign toslvHREADY      [s][m] = frommstHREADYOUT   [m]; //feed Masters's HREADY signal to slave port
           assign toslv_canswitch  [s][m] = frommst_canswitch  [m];
       end //next m
     end //next s
@@ -260,10 +252,10 @@ endgenerate
     begin: master
       for (s=0; s<SLAVES; s++)
       begin: slave
-          assign tomstgrant    [m][s] = fromslvgrant    [s][m];   
-          assign tomstHRDATA   [m][s] = fromslvHRDATA   [s];
-          assign tomstHREADYOUT[m][s] = fromslvHREADYOUT[s];
-          assign tomstHRESP    [m][s] = fromslvHRESP    [s];
+          assign tomstgrant [m][s] = fromslvgrant    [s][m];   
+          assign tomstHRDATA[m][s] = fromslvHRDATA   [s];
+          assign tomstHREADY[m][s] = fromslvHREADYOUT[s];
+          assign tomstHRESP [m][s] = fromslvHRESP    [s];
       end //next s
     end //next m
   endgenerate
@@ -296,9 +288,7 @@ generate
     .mstHBURST       ( toslvHBURST      [s] ),
     .mstHPROT        ( toslvHPROT       [s] ),
     .mstHTRANS       ( toslvHTRANS      [s] ),
-    .mstHTRANS4sw    ( toslvHTRANS4sw   [s] ),
     .mstHMASTLOCK    ( toslvHMASTLOCK   [s] ),
-    .mstHMASTLOCK4sw ( toslvHMASTLOCK4sw[s] ),
     .mstHREADY       ( toslvHREADY      [s] ),
     .mstHREADYOUT    ( fromslvHREADYOUT [s] ),
     .mstHRESP        ( fromslvHRESP     [s] ),
