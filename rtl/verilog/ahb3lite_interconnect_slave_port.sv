@@ -58,11 +58,9 @@ module ahb3lite_interconnect_slave_port #(
   input      [MASTERS-1:0][            2:0] mstHBURST,
   input      [MASTERS-1:0][            3:0] mstHPROT,
   input      [MASTERS-1:0][            1:0] mstHTRANS,
-                                            mstHTRANS4sw,
   input      [MASTERS-1:0]                  mstHMASTLOCK,
-                                            mstHMASTLOCK4sw,
-  input      [MASTERS-1:0]                  mstHREADY,
-  output                                    mstHREADYOUT,
+  input      [MASTERS-1:0]                  mstHREADY,         //HREADY input from master-bus
+  output                                    mstHREADYOUT,      //HREADYOUT output to master-bus
   output                                    mstHRESP,
 
   //AHB Master Interfaces (send data to AHB slaves)
@@ -77,8 +75,8 @@ module ahb3lite_interconnect_slave_port #(
   output     [           3:0]               slv_HPROT,
   output     [           1:0]               slv_HTRANS,
   output                                    slv_HMASTLOCK,
-  input                                     slv_HREADYOUT,
-  output                                    slv_HREADY,
+  output                                    slv_HREADYOUT,
+  input                                     slv_HREADY,
   input                                     slv_HRESP,
 
   input      [MASTERS   -1:0]               can_switch,
@@ -107,8 +105,6 @@ module ahb3lite_interconnect_slave_port #(
   
   logic [MASTER_BITS-1:0]              granted_master_idx,      //granted master as index
                                        granted_master_idx_dly;  //deleayed granted master index (for HWDATA)
-  logic [            1:0]              granted_HTRANS;          //HTRANS from granted master
-  logic                                granted_HMASTLOCK;       //HMASTLOCK from granted master
   
   logic                                can_switch_master;       //Slave may switch to a new master
 
@@ -230,11 +226,6 @@ module ahb3lite_interconnect_slave_port #(
     if (slv_HREADY) granted_master_idx_dly <= granted_master_idx;
 
 
-  assign granted_HTRANS    = mstHTRANS4sw   [granted_master_idx];
-  assign granted_HMASTLOCK = mstHMASTLOCK4sw[granted_master_idx];
-
-
-
   /*
    * If first granted access from slave-port and HTRANS = SEQ, then change to NONSEQ
    * as this is most likely a burst going over a slave boundary
@@ -251,11 +242,11 @@ module ahb3lite_interconnect_slave_port #(
   assign slv_HBURST    =  mstHBURST   [granted_master_idx];
   assign slv_HPROT     =  mstHPROT    [granted_master_idx];
   assign slv_HTRANS    =  mstHTRANS   [granted_master_idx];
-  assign slv_HREADY    =  mstHREADY   [granted_master_idx];
+  assign slv_HREADYOUT =  mstHREADY   [granted_master_idx]; //Slave Ports HREADYOUT connects to Master Port's HREADY
   assign slv_HMASTLOCK =  mstHMASTLOCK[granted_master_idx];
 
   assign mstHRDATA    =  slv_HRDATA;
-  assign mstHREADYOUT =  slv_HREADYOUT;
+  assign mstHREADYOUT =  slv_HREADY; //Master Port's HREADYOUT is driven by Slave Port's (local) HREADY signal
   assign mstHRESP     =  slv_HRESP;
 endmodule
 
