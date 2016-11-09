@@ -107,7 +107,7 @@ module testbench_top;
 
   /////////////////////////////////////////////////////////
   //
-  // Master & Slave ports
+  // Master & Slave Model ports
   //
   ahb3lite_if #(HADDR_SIZE, HDATA_SIZE) ahb_master[MASTERS] (HCLK,HRESETn);
   ahb3lite_if #(HADDR_SIZE, HDATA_SIZE) ahb_slave [SLAVES ] (HCLK,HRESETn);
@@ -167,11 +167,11 @@ generate
       assign ahb_slave[s].HPROT     = slv_HPROT    [s];
       assign ahb_slave[s].HTRANS    = slv_HTRANS   [s];
       assign ahb_slave[s].HMASTLOCK = slv_HMASTLOCK[s];
-      assign ahb_slave[s].HREADY    = slv_HREADY   [s];
+      assign ahb_slave[s].HREADY    = slv_HREADYOUT[s]; //no decoder on slave bus. Interconnect's HREADYOUT drives single slave's HREADY input
 
-      assign slv_HRDATA   [s] = ahb_slave[s].HRDATA;
-      assign slv_HREADYOUT[s] = ahb_slave[s].HREADYOUT;
-      assign slv_HRESP    [s] = ahb_slave[s].HRESP;
+      assign slv_HRDATA[s] = ahb_slave[s].HRDATA;
+      assign slv_HREADY[s] = ahb_slave[s].HREADYOUT; //no decoder on slave bus. Interconnect's HREADY is driven by single slave's HREADYOUT
+      assign slv_HRESP [s] = ahb_slave[s].HRESP;
   end
 endgenerate
 
