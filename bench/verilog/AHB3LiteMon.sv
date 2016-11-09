@@ -65,6 +65,7 @@ class AHB3LiteMon extends BaseMon;
   extern         task initialize();
   extern         task wait4transfer();
   extern         task wait4hready();
+  extern         task ahb_hreadyout();
   extern         task ahb_setup(input AHBBusTr tr);
   extern         task ahb_next(input AHBBusTr tr);
   extern         task ahb_data(input AHBBusTr tr);
@@ -121,19 +122,24 @@ task AHB3LiteMon::wait4transfer();
   while (!slave.cb_slave.HREADY ||
          !slave.cb_slave.HSEL   ||
           slave.cb_slave.HTRANS == HTRANS_IDLE)
-    @(slave.cb_slave);
+  begin
+      @(slave.cb_slave);
+      slave.HREADYOUT <= 1'b1;
+  end
 endtask : wait4transfer
 
 
+//-------------------------------------
 //Wait for HREADY to assert
 task AHB3LiteMon::wait4hready();
-  while (slave.cb_slave.HREADY !== 1'b1 || slave.cb_slave.HTRANS == HTRANS_BUSY)
-    @(slave.cb_slave);
+  while (slave.cb_slave.HREADY !== 1'b1 || slave.cb_slave.HTRANS == HTRANS_BUSY) @(slave.cb_slave);
 endtask : wait4hready
 
 
 //-------------------------------------
 //Create new BusTransaction (receive side)
+//
+//When we get here, the previous transaction completed (HREADY='1')
 task AHB3LiteMon::ahb_setup(input AHBBusTr tr);
   byte address[];
 
@@ -145,23 +151,27 @@ task AHB3LiteMon::ahb_setup(input AHBBusTr tr);
   tr.BytesPerTransfer = HSIZE2BytesPerTransfer(slave.cb_slave.HSIZE);
   tr.TransferSize     = 1; //set to 1. Actually count transfers per burst
   tr.Write            = slave.cb_slave.HWRITE;
-
-//  @(slave.cb_slave);
 endtask : ahb_setup
 
 
 //-------------------------------------
 //Get next transfer
+//
+//When we get here, we only stored the data of the 1st cycle of the transaction
+//and we're still in the 1st cycle
 task AHB3LiteMon::ahb_next(input AHBBusTr tr);
   byte address[];
 
   //progress bus cycle (2nd cycle of burst)
+  //HREADY='1' (from 'wait4transfer'), so proceed 1 cycle
   @(slave.cb_slave);
 
+//$display ("%0t %0d %0d %0d %0d", $time, PortId, slave.cb_slave.HSEL, slave.cb_slave.HTRANS, slave.cb_slave.HREADY);
+
   while (slave.cb_slave.HSEL   == 1'b1 &&
-         (slave.cb_slave.HTRANS == HTRANS_SEQ || slave.cb_slave.HTRANS == HTRANS_BUSY) )
+         (slave.cb_slave.HTRANS == HTRANS_SEQ || slave.cb_slave.HTRANS == HTRANS_BUSY || slave.cb_slave.HREADY !== 1'b1) )
   begin
-      if (slave.cb_slave.HSEL && slave.cb_slave.HREADY && slave.cb_slave.HTRANS == HTRANS_SEQ)
+      if (slave.cb_slave.HREADY && slave.cb_slave.HTRANS == HTRANS_SEQ)
       begin
           address = new[ (tr.AddressSize+7)/8 ];
           getHADDR(address);
@@ -178,6 +188,10 @@ endtask : ahb_next
 
 //-------------------------------------
 //AHB Data task
+//
+//When we get here, we only stored the data of the 1st cycle of the transaction
+//and we're still in the 1st cycle
+//We're in control of HREADY (actually HREADYOUT)
 task AHB3LiteMon::ahb_data(input AHBBusTr tr);
   byte data[], address[];
   byte data_queue[$];
@@ -194,8 +208,6 @@ task AHB3LiteMon::ahb_data(input AHBBusTr tr);
   cnt = 0;
   while (cnt !== tr.TransferSize)
   begin
-      wait4hready();
-
       //increase transfer counter
       cnt++;
 
@@ -207,16 +219,22 @@ task AHB3LiteMon::ahb_data(input AHBBusTr tr);
       begin
           //This is a write cycle
 
-          //proceed to next cycle of burst
+          //generate HREADYOUT (delay)
+          ahb_hreadyout();
+
+          //proceed to next cycle of burst (this drives HREADYOUT high)
           @(slave.cb_slave);
 
-          //and read data from HWDATA
+          //and read data from HWDATA (while HREADYOUT is high)
           foreach (data[i])
             data[i] = slave.cb_slave.HWDATA[(i + data_offset)*8 +: 8];
       end
       else
       begin
           //This is a read cycle
+
+          //generate HREADYOUT (delay)
+          ahb_hreadyout();
 
           //Provide data on HRDATA
           foreach (data[i])
@@ -226,6 +244,7 @@ task AHB3LiteMon::ahb_data(input AHBBusTr tr);
           end
 
           //and proceed to next cycle of burst
+          //This drives HREADYOUT high and drives the data
           @(slave.cb_slave);
       end
 
@@ -247,6 +266,43 @@ task AHB3LiteMon::ahb_data(input AHBBusTr tr);
       tr.display($sformatf("@%0t Mon%0d: ", $time, PortId));
   `endif
 endtask : ahb_data
+
+
+//-------------------------------------
+//Generate HREADYOUT
+//Generate useful HREADYOUT delays
+task AHB3LiteMon::ahb_hreadyout();
+  //useful delays;
+  // no delay    : 0
+  // some delay  : 1, 2, 
+  // burst delay : 4, 8, 16 (check for buffer overrun)
+
+  int delay_opt,
+      delay,
+      cnt;
+
+  //generate HREADYOUT
+  delay_opt = $urandom_range(0,5); //pick a number between 0 and 5
+
+  case (delay_opt)
+     0: delay = 0;
+     1: delay = 1;
+     2: delay = 2;
+     3: delay = 4;
+     4: delay = 8;
+     5: delay = 16;
+  endcase
+
+  //drive HREADYOUT low for the duration of the delay
+  for (int n=1; n < delay; n++)
+  begin
+      slave.cb_slave.HREADYOUT <= 1'b0;
+      @(slave.cb_slave);
+  end
+
+  //drive HREADYOUT high
+  slave.cb_slave.HREADYOUT <= 1'b1;
+endtask : ahb_hreadyout
 
 
 //-------------------------------------
