@@ -77,11 +77,9 @@ module ahb3lite_interconnect_master_port #(
   output             [            2:0] slvHBURST,
   output             [            3:0] slvHPROT,
   output             [            1:0] slvHTRANS,
-                                       slvHTRANS4sw,
   output                               slvHMASTLOCK,
-                                       slvHMASTLOCK4sw,
-  input  [SLAVES-1:0]                  slvHREADYOUT,
-  output                               slvHREADY,
+  input  [SLAVES-1:0]                  slvHREADY,
+  output                               slvHREADYOUT,
   input  [SLAVES-1:0]                  slvHRESP,
 
   //Internal signals
@@ -178,7 +176,7 @@ module ahb3lite_interconnect_master_port #(
    */
   always @(posedge HCLK,negedge HRESETn)
     if      (!HRESETn   ) local_HREADYOUT <= 1'b1;
-    else if ( mst_HREADY) local_HREADYOUT <= (mst_HTRANS == HTRANS_IDLE);
+    else if ( mst_HREADY) local_HREADYOUT <= (mst_HTRANS == HTRANS_IDLE) | ~mst_HSEL;
 
   /*
    * Access granted state machine
@@ -201,10 +199,11 @@ module ahb3lite_interconnect_master_port #(
                         else if ( |(current_HSEL & master_granted) ) access_state <= ACCESS_GRANTED;
                         else                                         access_state <= ACCESS_PENDING;
 
-        ACCESS_PENDING: if ( |(pending_HSEL & master_granted) ) access_state <= ACCESS_GRANTED;
+        ACCESS_PENDING: if ( |(pending_HSEL & master_granted)  &&
+                             slvHREADY[slave_sel]                  ) access_state <= ACCESS_GRANTED;
 
-        ACCESS_GRANTED: if (mst_HREADY && ~|current_HSEL) access_state <= NO_ACCESS;
-                        else if (mst_HREADY && ~|(current_HSEL & master_granted) ) access_state <= ACCESS_PENDING;
+        ACCESS_GRANTED: if      (mst_HREADY && ~|current_HSEL                                ) access_state <= NO_ACCESS;
+                        else if (mst_HREADY && ~|(current_HSEL & master_granted & slvHREADY) ) access_state <= ACCESS_PENDING;
       endcase
 
 
@@ -286,19 +285,17 @@ endgenerate
   assign slvHBURST       = mux_sel ? mst_HBURST    : regHBURST;
   assign slvHPROT        = mux_sel ? mst_HPROT     : regHPROT;
   assign slvHTRANS       = mux_sel ? mst_HTRANS    : regHTRANS == HTRANS_SEQ && regHBURST == HBURST_INCR ? HTRANS_NONSEQ : regHTRANS;
-  assign slvHTRANS4sw    =           mst_HTRANS;
   assign slvHMASTLOCK    = mux_sel ? mst_HMASTLOCK : regHMASTLOCK;
-  assign slvHMASTLOCK4sw =           mst_HMASTLOCK;
-  assign slvHREADY       = mux_sel ? mst_HREADY    : 1'b1;
+  assign slvHREADYOUT    = mux_sel ? mst_HREADY & |(current_HSEL & slvHREADY) : slvHREADY[slave_sel]; //slave's HREADYOUT is driven by master's HREADY (mst_HREADY -> slv_HREADYOUT)
   assign slvpriority     = mux_sel ? mst_priority  : regpriority;
 
 
   /*
    * Incoming data (to masters)
    */
-  assign mst_HRDATA    =                  slvHRDATA   [slave_sel];
-  assign mst_HREADYOUT = access_granted ? slvHREADYOUT[slave_sel] : local_HREADYOUT;
-  assign mst_HRESP     = access_granted ? slvHRESP    [slave_sel] : HRESP_OKAY; 
+  assign mst_HRDATA    =                  slvHRDATA[slave_sel];
+  assign mst_HREADYOUT = access_granted ? slvHREADY[slave_sel] : local_HREADYOUT; //master's HREADYOUT is driven by slave's HREADY (slv_HREADY -> mst_HREADYOUT)
+  assign mst_HRESP     = access_granted ? slvHRESP [slave_sel] : HRESP_OKAY; 
 endmodule
 
 
