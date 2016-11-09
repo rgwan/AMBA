@@ -43,11 +43,11 @@
 /////////////////////////////////////////////////////////////////
 
 class Config #(parameter HADDR_SIZE=32) extends BaseConfig;
-  int nMasters, nSlaves;      //number of master and slave ports
+  int nMasters, nSlaves;           //number of master and slave ports
 
   int MinTransactions = 100_000;   //Minimum number of transactions per master
   int MaxTransactions = 1000_000;  //Maximum number of transactions per master
-  int nTransactions[];        //Actual number of transactions per master
+  int nTransactions[];             //Actual number of transactions per master
 
 
   logic [           2:0] mst_priority [];
