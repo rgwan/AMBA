@@ -339,10 +339,10 @@ module ahb3lite_apb_bridge #(
 
   always @(posedge PCLK,negedge PRESETn)
     if (!PRESETn) treq_sync <= 'h0;
-    else          treq_sync <= {treq_sync[1:0], treq_toggle};
+    else          treq_sync <= {treq_sync[SYNC_DEPTH-2:0], treq_toggle};
 
 
-  assign apb_treq_strb = treq_sync[2] ^ treq_sync[1];
+  assign apb_treq_strb = treq_sync[SYNC_DEPTH-1] ^ treq_sync[SYNC_DEPTH-2];
 
 
   //APB -> AHB
@@ -353,10 +353,10 @@ module ahb3lite_apb_bridge #(
 
   always @(posedge HCLK,negedge HRESETn)
     if (!HRESETn) tack_sync <= 'h0;
-    else          tack_sync <= {tack_sync[1:0], tack_toggle};
+    else          tack_sync <= {tack_sync[SYNC_DEPTH-2:0], tack_toggle};
 
 
-  assign ahb_tack_strb = tack_sync[2] ^ tack_sync[1];
+  assign ahb_tack_strb = tack_sync[SYNC_DEPTH-1] ^ tack_sync[SYNC_DEPTH-2];
 
 
   /*
