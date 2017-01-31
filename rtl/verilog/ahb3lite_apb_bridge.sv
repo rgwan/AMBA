@@ -38,7 +38,7 @@ module ahb3lite_apb_bridge #(
   parameter HADDR_SIZE = 32,
   parameter HDATA_SIZE = 32,
   parameter PADDR_SIZE = 10,
-  parameter PDATA_SIZE =  8, //TODO: Assert PDATA_SIZE <= HDATA_SIZE
+  parameter PDATA_SIZE =  8,
   parameter SYNC_DEPTH =  3
 )
 (
@@ -91,46 +91,77 @@ module ahb3lite_apb_bridge #(
                    PPROT_DATA        = 3'b000,
                    PPROT_INSTRUCTION = 3'b100;
 
+  //SYNC_DEPTH
+  localparam SYNC_DEPTH_MIN = 3;
+  localparam SYNC_DEPTH_CHK = SYNC_DEPTH > SYNC_DEPTH_MIN ? SYNC_DEPTH : SYNC_DEPTH_MIN;
+
+
+  ////////////////////////////////////////////////////////////////
+  //
+  // Checks (assertions)
+  //
+  initial
+  begin
+      //check if HRDATA/HWDATA/PRDATA/PWDATA are multiples of bytes
+      a1: assert (HDATA_SIZE % 8 ==0)
+          else $error("HDATA_SIZE must be an integer multiple of bytes (8bits)");
+
+      a2: assert (PDATA_SIZE % 8 ==0)
+          else $error("PDATA_SIZE must be an integer multiple of bytes (8bits)");
+
+
+      //Check if PDATA_SIZE <= HDATA_SIZE
+      a3: assert (PDATA_SIZE <= HDATA_SIZE)
+          else $error("PDATA_SIZE must be less than or equal to HDATA_SIZE (PDATA_SIZE <= HDATA_SIZE");
+
+
+      //Check SYNC_DEPTH >= 3
+      a4: assert (SYNC_DEPTH >= SYNC_DEPTH_MIN)
+          else $warning("SYNC_DEPTH=%0d is less than minimum. Changed to %0d", SYNC_DEPTH, SYNC_DEPTH_CHK);
+
+  end
+
+
   //////////////////////////////////////////////////////////////////
   //
   // Variables
   //
-  logic                  ahb_treq;      //transfer request from AHB Statemachine
-  logic                  treq_toggle;   //toggle-signal-version
-  logic [SYNC_DEPTH-1:0] treq_sync;     //synchronized transfer request
-  logic                  apb_treq_strb; //transfer request strobe to APB Statemachine
+  logic                      ahb_treq;      //transfer request from AHB Statemachine
+  logic                      treq_toggle;   //toggle-signal-version
+  logic [SYNC_DEPTH_CHK-1:0] treq_sync;     //synchronized transfer request
+  logic                      apb_treq_strb; //transfer request strobe to APB Statemachine
 
-  logic                  apb_tack;      //transfer acknowledge from APB Statemachine
-  logic                  tack_toggle;   //toggle-signal-version
-  logic [SYNC_DEPTH-1:0] tack_sync;     //synchronized transfer acknowledge
-  logic                  ahb_tack_strb; //transfer acknowledge strobe to AHB Statemachine
+  logic                      apb_tack;      //transfer acknowledge from APB Statemachine
+  logic                      tack_toggle;   //toggle-signal-version
+  logic [SYNC_DEPTH_CHK-1:0] tack_sync;     //synchronized transfer acknowledge
+  logic                      ahb_tack_strb; //transfer acknowledge strobe to AHB Statemachine
 
 
   //store AHB data locally (pipelined bus)
-  logic [HADDR_SIZE-1:0] ahb_haddr;
-  logic [HDATA_SIZE-1:0] ahb_hwdata;
-  logic                  ahb_hwrite;
-  logic [           2:0] ahb_hsize;
-  logic [           3:0] ahb_hprot;
+  logic [HADDR_SIZE    -1:0] ahb_haddr;
+  logic [HDATA_SIZE    -1:0] ahb_hwdata;
+  logic                      ahb_hwrite;
+  logic [               2:0] ahb_hsize;
+  logic [               3:0] ahb_hprot;
 
-  logic                  latch_ahb_hwdata;
+  logic                      latch_ahb_hwdata;
 
 
   //store APB data locally
-  logic [HDATA_SIZE-1:0] apb_prdata;
-  logic                  apb_pslverr;
+  logic [HDATA_SIZE    -1:0] apb_prdata;
+  logic                      apb_pslverr;
 
 
   //State machines
-  ahb_fsm_states ahb_fsm;
-  apb_fsm_states apb_fsm;
+  ahb_fsm_states             ahb_fsm;
+  apb_fsm_states             apb_fsm;
 
 
   //number of transfer cycles (AMBA-beats) on APB interface
-  logic [6:0] apb_beat_cnt;
+  logic [               6:0] apb_beat_cnt;
 
   //running offset in HWDATA
-  logic [9:0] apb_beat_data_offset;
+  logic [               9:0] apb_beat_data_offset;
 
 
   //////////////////////////////////////////////////////////////////
@@ -384,16 +415,16 @@ module ahb3lite_apb_bridge #(
            ST_APB_IDLE:
              if (apb_treq_strb)
              begin
-                 apb_fsm <= ST_APB_SETUP;
+                 apb_fsm              <= ST_APB_SETUP;
 
-                 PSEL    <= 1'b1;
-                 PENABLE <= 1'b0;
-                 PPROT   <= ((ahb_hprot & HPROT_DATA      ) ? PPROT_DATA       : PPROT_INSTRUCTION) |
-                            ((ahb_hprot & HPROT_PRIVILEGED) ? PPROT_PRIVILEGED : PPROT_NORMAL     );
-                 PADDR   <= ahb_haddr[PADDR_SIZE-1:0];
-                 PWRITE  <= ahb_hwrite;
-                 PWDATA  <= ahb_hwdata >> data_offset(ahb_haddr);
-                 PSTRB   <= ahb_hwrite & pstrb(ahb_hsize,ahb_haddr[PADDR_SIZE-1:0]); //TODO: check/sim
+                 PSEL                 <= 1'b1;
+                 PENABLE              <= 1'b0;
+                 PPROT                <= ((ahb_hprot & HPROT_DATA      ) ? PPROT_DATA       : PPROT_INSTRUCTION) |
+                                         ((ahb_hprot & HPROT_PRIVILEGED) ? PPROT_PRIVILEGED : PPROT_NORMAL     );
+                 PADDR                <= ahb_haddr[PADDR_SIZE-1:0];
+                 PWRITE               <= ahb_hwrite;
+                 PWDATA               <= ahb_hwdata >> data_offset(ahb_haddr);
+                 PSTRB                <= ahb_hwrite & pstrb(ahb_hsize,ahb_haddr[PADDR_SIZE-1:0]); //TODO: check/sim
 
                  apb_prdata           <= 'h0;                                   //clear prdata
                  apb_beat_cnt         <= apb_beats(ahb_hsize);
@@ -410,13 +441,13 @@ module ahb3lite_apb_bridge #(
            ST_APB_TRANSFER:
              if (PREADY)
              begin
-                 apb_beat_cnt <= apb_beat_cnt -1;
+                 apb_beat_cnt         <= apb_beat_cnt -1;
                  apb_beat_data_offset <= apb_beat_data_offset + PDATA_SIZE;
 
-                 apb_prdata   <= (apb_prdata << PDATA_SIZE) | (PRDATA << data_offset(ahb_haddr));//TODO: check/sim
-                 apb_pslverr  <= PSLVERR;
+                 apb_prdata           <= (apb_prdata << PDATA_SIZE) | (PRDATA << data_offset(ahb_haddr));//TODO: check/sim
+                 apb_pslverr          <= PSLVERR;
 
-                 PENABLE      <= 1'b0;
+                 PENABLE              <= 1'b0;
 
                  if (PSLVERR || ~|apb_beat_cnt)
                  begin
