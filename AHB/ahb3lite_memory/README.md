@@ -3,7 +3,7 @@ Multi-technology RAM with AHB3-Lite interface
 
 <h2>Dependencies</h2>
 This release requires the
-- ahb3lite package found here https://github.com/RoaLogic/ahb3lite_pkg
+- ahb3lite package found here https://github.com/RoaLogic/AMBA/AHB/ahb3lite_pkg
 - memorys IPs found here https://github.com/RoaLogic/memory
 
 
