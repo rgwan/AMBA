@@ -120,6 +120,7 @@ interface ahb3lite_bus #(
   logic                   HREADYOUT;
   logic                   HRESP;
 
+`ifdef SIM
   // Master CB Interface Definitions
   clocking cb_master @(posedge HCLK);
       output HSEL;
@@ -140,7 +141,6 @@ interface ahb3lite_bus #(
     clocking cb_master,
     input    HRESETn
   );
-
 
   // Slave Interface Definitions
   clocking cb_slave @(posedge HCLK);
@@ -163,6 +163,7 @@ interface ahb3lite_bus #(
       clocking cb_slave,
       input HRESETn
   );
+`endif
 
   modport master (
       input  HRESETn,
