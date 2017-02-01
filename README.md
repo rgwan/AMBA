@@ -1,2 +1,2 @@
 # ahb3lite_pkg
-SystemVerilog package for AHB3Lite IP
+Common SystemVerilog package used by all RoaLogic IP with AMBA AHB3-Lite interfaces
